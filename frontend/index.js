@@ -43,13 +43,14 @@ let playerNumber;
 const wordLength = 5;
 const maxGuesses = 7;
 
-function Tile() {
+function Tile(round = false) {
   const element = document.createElement('div');
   element.classList.add('tile-container');
   
   const tile = document.createElement('div');
   tile.classList.add('tile');
   element.appendChild(tile)
+  if(round) tile.style.borderRadius = '50%';
   
   let value = ''
   let state = 'tbd'
@@ -110,7 +111,7 @@ function Tile() {
   }
 }
 
-function createGuessRow() {
+function createGuessRow(round = false) {
   // Create container
   const element = document.createElement('div');
   element.classList.add('guess');
@@ -121,7 +122,7 @@ function createGuessRow() {
   let tiles = [];
   let i = 0;
   for(;i<wordLength;i++) {
-    const tile = Tile();
+    const tile = Tile(round);
     element.appendChild(tile.element);
     tiles.push(tile);
   }
@@ -168,7 +169,7 @@ function createGameBoard() {
   let guesses = [];
   let i = 0;
   for(;i<maxGuesses;i++) {
-    const guess = createGuessRow();
+    const guess = createGuessRow(i % 2 === 1 ? true : false);
     element.appendChild(guess.element);
     guesses.push(guess);
   }
@@ -413,7 +414,7 @@ function Game() {
   function submitGuess() {
     const word = guess.value.getWord();
     
-    if(word.length !== wordLength) {
+    if(word.length !== wordLength && word.length !== 0) {
       handleShortWord();
       return
     }
