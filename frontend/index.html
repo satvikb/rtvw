@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Versle - 1v1 Wordle</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+  <link rel="stylesheet" href="styles.css">
+
+</head>
+<body>
+  <section class="vh-100">
+    <div class="container h-100">
+
+      <div id="initialScreen" class="h-100">
+        <div class="d-flex flex-column align-items-center justify-content-center h-100">
+            <h1>Versle - 1v1 Wordle</h1>
+            <button
+              type="submit"
+              class="btn btn-success"
+              id="newGameButton"
+            >
+              Create New Game
+            </button>
+            <div>OR</div>
+            <div class="form-group">
+              <input type="text" placeholder="Enter Game Code" id="gameCodeInput"/>
+            </div>
+            <button
+              type="submit"
+              class="btn btn-success"
+              id="joinGameButton"
+            >
+              Join Game
+            </button>
+        </div>
+      </div>
+      <!-- <div id="controls">
+        <button id="newGameButton">NEW GAME</button>
+        <button id="giveUpButton">GIVE UP</button>
+      </div> -->
+      <h1>Your game code is: <span id="gameCodeDisplay"></span></h1>
+      <h1><span id="gameState"></span></h1>
+      <div id="game">
+        <div id="game-container"></div>
+        <div id="keyboard"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+  <script src="index.js"></script>
+</body>
+</html>
