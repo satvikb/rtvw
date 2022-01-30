@@ -8,7 +8,7 @@ function getRandomWord() {
   return matchDict[idx];
 }
 
-const socket = io('http://localhost:3000');
+const socket = io('https://versle.herokuapp.com');
 
 const game = document.getElementById('game');
 const initialScreen = document.getElementById('initialScreen');
