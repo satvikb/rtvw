@@ -92,14 +92,14 @@ io.on('connection', client => {
 
 const PORT= process.env.PORT || 8080; 
 
-fs.readFile('../frontend/index.html', function (err, html) {
+fs.readFile('./frontend/index.html', function (err, html) {
 
     if (err) throw err;    
 
     httpServer.createServer(function(request, response) {  
-            var filePath = '../frontend' + request.url;
-        if (filePath == '../frontend/')
-            filePath = '../frontend/index.html';
+            var filePath = './frontend' + request.url;
+        if (filePath == './frontend/')
+            filePath = './frontend/index.html';
 
         var extname = path.extname(filePath);
         var contentType = 'text/html';
