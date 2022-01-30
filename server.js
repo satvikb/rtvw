@@ -7,13 +7,47 @@ const app = express()
 const PORT= process.env.PORT || 3000; 
 const INDEX = path.join(__dirname, 'frontend');
 
-app.use(express.static(INDEX))
-app.use('*', (req, res) => {
-    res.sendFile(INDEX + '/index.html');
-});
+// app.use(express.static(INDEX))
+// app.use('*', (req, res) => {
+//     res.sendFile(INDEX + '/index.html');
+// });
 //app.listen(PORT, () => console.log(`Listening on ${ PORT }`));
 
-const server = http.createServer(app);
+var server = http.createServer(function(request, response) {  
+    var filePath = './frontend' + request.url;
+if (filePath == './frontend/')
+    filePath = './frontend/index.html';
+
+var extname = path.extname(filePath);
+var contentType = 'text/html';
+switch (extname) {
+    case '.js':
+        contentType = 'text/javascript';
+        break;
+    case '.css':
+        contentType = 'text/css';
+        break;
+}
+fs.readFile(filePath, function(error, content) {
+    if (error) {
+        if(error.code == 'ENOENT'){
+            fs.readFile('./404.html', function(error, content) {
+                response.writeHead(200, { 'Content-Type': contentType });
+                response.end(content, 'utf-8');
+            });
+        }
+        else {
+            response.writeHead(500);
+            response.end('Sorry, check with the site admin for error: '+error.code+' ..\n');
+            response.end(); 
+        }
+    }
+    else {
+        response.writeHead(200, { 'Content-Type': contentType });
+        response.end(content, 'utf-8');
+    }
+});
+});
 
 const { makeid } = require('./utils');
 const io = require('socket.io')(server, {
@@ -103,47 +137,5 @@ io.on('connection', client => {
         io.emit('action', keyCode);
     }
 });
-
-
-// fs.readFile('./frontend/index.html', function (err, html) {
-
-//     if (err) throw err;    
-
-//     httpServer.createServer(function(request, response) {  
-//             var filePath = './frontend' + request.url;
-//         if (filePath == './frontend/')
-//             filePath = './frontend/index.html';
-
-//         var extname = path.extname(filePath);
-//         var contentType = 'text/html';
-//         switch (extname) {
-//             case '.js':
-//                 contentType = 'text/javascript';
-//                 break;
-//             case '.css':
-//                 contentType = 'text/css';
-//                 break;
-//         }
-//         fs.readFile(filePath, function(error, content) {
-//             if (error) {
-//                 if(error.code == 'ENOENT'){
-//                     fs.readFile('./404.html', function(error, content) {
-//                         response.writeHead(200, { 'Content-Type': contentType });
-//                         response.end(content, 'utf-8');
-//                     });
-//                 }
-//                 else {
-//                     response.writeHead(500);
-//                     response.end('Sorry, check with the site admin for error: '+error.code+' ..\n');
-//                     response.end(); 
-//                 }
-//             }
-//             else {
-//                 response.writeHead(200, { 'Content-Type': contentType });
-//                 response.end(content, 'utf-8');
-//             }
-//         });
-//     }).listen(PORT);
-// });
 
 server.listen(PORT);
