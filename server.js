@@ -134,7 +134,7 @@ io.on('connection', client => {
         if(!roomName) {
             return;
         }
-        io.emit('action', keyCode);
+        io.to(roomName).emit('action', keyCode);
     }
 });
 
