@@ -413,13 +413,18 @@ function Game() {
 
   function submitGuess() {
     const word = guess.value.getWord();
+
+    if(word.length === 0)
+    {
+      return;
+    }
     
     if(word.length !== wordLength && word.length !== 0) {
       handleShortWord();
       return
     }
     
-    if(!(wordDict.includes(word) || matchDict.includes(word))) {
+    if(!(wordDict.includes(word) || matchDict.includes(word)) && word.length !== 0) {
       handleInvalidWord();
       return ;
     }
