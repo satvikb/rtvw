@@ -55,15 +55,15 @@ function addUsernameToList(id, username, wins){
     winCounter.id = id+"_wins";
 
     usernameEle.innerText = username;
-    winCounter.innerText = `${wins}`;
+    winCounter.innerHTML = `&nbsp;Wins: ${wins}`;
     listEle.appendChild(usernameEle);
     listEle.appendChild(winCounter);
     playerList.appendChild(listEle);  
   }else{
     var usernameEle = document.getElementById(id+"_username");
-    usernameEle.innerHTML = username;
+    usernameEle.inner = username;
     var winCounter = document.getElementById(id+"_wins");
-    winCounter.innerHTML = ` ${wins}`;
+    winCounter.innerHTML = `&nbsp;Wins: ${wins}`;
   }
 
   resetOtherPlayerBoards(currentPlayers)
@@ -87,15 +87,20 @@ joinGameBtn.addEventListener('click', joinGame);
 startGameButton.addEventListener('click', startGame);
 
 function newGame() {
-  const username = usernameInput.value;
+  var username = usernameInput.value;
+  if(username == "" || username == undefined){
+    username = "player " + Math.floor(Math.random() * 100);
+  }
   socket.emit('newGame', username);
   init();
 }
 
 function joinGame() {
   const code = gameCodeInput.value;
-  const username = usernameInput.value;
-
+  var username = usernameInput.value;
+  if(username == "" || username == undefined){
+    username = "player " + Math.floor(Math.random() * 100);
+  }
   socket.emit('joinGame', code, username);
   init();
 }
@@ -552,6 +557,7 @@ function Game() {
     matchWord = word;
 
     activeGame = true;
+    startGameButton.style.display = "none";
     // addListeners();
   }
   
@@ -722,6 +728,7 @@ function correctGuess(){
 
 function gameWon(roundEndObject){
   var timerExpired = roundEndObject.timerExpired;
+  console.log("ROUND ENDED: ", JSON.stringify(roundEndObject));
   if(timerExpired == true){
     gameState.innerText = `Timer expired, nobody wins!`;
 
@@ -741,6 +748,7 @@ function gameWon(roundEndObject){
     gameState.innerText = `${winnerName} wins!`;
   }
 
+  startGameButton.style.display = "inline";
 
   theGame.endGame();
 }

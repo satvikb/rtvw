@@ -40,7 +40,8 @@ function initGame()
     const game = {
         word: "",
         timeEnd: 0,
-        timeStart: 0
+        timeStart: 0,
+        active: false
     };
     
     return game;
@@ -120,7 +121,6 @@ io.on('connection', client => {
         }
 
         return {
-            word: state[roomName].word,
             existingUserData: userData
         }
     }
@@ -131,7 +131,7 @@ io.on('connection', client => {
             return;
         }
         // end time
-        if(client.host == true){
+        if(client.host == true && state[roomName].active == false){
             var roundDuration = 60; // in seconds
             var roundDurationMs = roundDuration * 1000;
             var endTime = new Date().getTime() + roundDurationMs;
@@ -144,20 +144,32 @@ io.on('connection', client => {
 
             state[roomName].word = getRandomWord()
             state[roomName].endTime = endTime
+            state[roomName].active = true;
 
             var word = state[roomName].word;
+            console.log("starting room, word " + word);
             // game officially started
             io.to(roomName).emit('roomReady', word, endTime);
             let promise = new Promise(function(resolve, reject) {
+                var currentWord = state[roomName].word;
                 setTimeout(() => {
-                    resolve();
+                    var latestWord = state[roomName].word;
+                    // make sure the word hasn't changed
+                    // if it has, its a new room
+                    if(latestWord == currentWord && state[roomName].active == true) {
+                        resolve();
+                    }else{
+                        // invalid timer, game already ended or new round started
+                        reject();
+                    }
+                    
                 }, roundDurationMs) 
             });
             promise.then(result => {
                 // timer expired, nobody wins
                 sendRoundEnd(roomName, null, true);
             }, error => {
-                // ??
+                // invalid timer, ignore
             });
         }
     }
@@ -187,6 +199,7 @@ io.on('connection', client => {
         io.to(roomName).emit('guess_response', resObject);
 
         if(correctLetters == roomData.word.length) {
+            client.wins += 1;
             // client won the game
             client.emit('guess_win');
             sendRoundEnd(roomName, client.id, false);
@@ -205,6 +218,8 @@ io.on('connection', client => {
             winnerId: winnerId,
             totalWins:totalWins
         }
+        // set active to false
+        state[roomName].active = false;
         io.to(roomName).emit('roundEnd', roundEndObject);
     }
 
