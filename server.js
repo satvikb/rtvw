@@ -38,7 +38,7 @@ function initGame()
 {
     // initialize the game
     const game = {
-        word: getRandomWord(),
+        word: "",
         timeEnd: 0,
         timeStart: 0
     };
@@ -79,13 +79,14 @@ io.on('connection', client => {
 
         client.username = username;
         client.host = false;
-
+        client.active = false;
+        client.wins = 0;
 
 
         client.emit('init', getGameSettings(roomName, allUsers));
 
         client.join(roomName);
-        io.to(roomName).emit('userJoined', client.id, client.username);
+        io.to(roomName).emit('userJoined', client.id, client.username, client.wins);
     }
 
     function handleNewGame(username) {
@@ -98,25 +99,29 @@ io.on('connection', client => {
         client.join(roomName);
         client.username = username;
         client.host = true;
-        
-        client.emit("userJoined", client.id, username);
+        client.wins = 0;
+
+        client.emit("userJoined", client.id, username, client.wins);
         console.log("start room, word: " + state[roomName].word);
         client.emit('init', getGameSettings(roomName));
     }
 
     function getGameSettings(roomName, allUsers){
+        var userData = {}
         if(allUsers){
-            var usernames = {}
             for (var clientId in allUsers) {
                 console.log('client:', clientId);
                 var client_socket = io.sockets.connected[clientId];//Do whatever you want with this
-                usernames[clientId] = client_socket.username;
+                userData[clientId] = {
+                    username:client_socket.username,
+                    wins:client_socket.wins
+                }
             }
         }
 
         return {
             word: state[roomName].word,
-            existingUsers: usernames
+            existingUserData: userData
         }
     }
     
@@ -128,13 +133,37 @@ io.on('connection', client => {
         // end time
         if(client.host == true){
             var roundDuration = 60; // in seconds
-            var endTime = new Date().getTime() + roundDuration * 1000;
+            var roundDurationMs = roundDuration * 1000;
+            var endTime = new Date().getTime() + roundDurationMs;
+
+            // set all clients to active
+            for (var clientId in io.sockets.adapter.rooms[roomName].sockets) {
+                var client_socket = io.sockets.connected[clientId];
+                client_socket.active = true;
+            }
+
+            state[roomName].word = getRandomWord()
             state[roomName].endTime = endTime
-            io.to(roomName).emit('roomReady', endTime);
+
+            var word = state[roomName].word;
+            // game officially started
+            io.to(roomName).emit('roomReady', word, endTime);
+            let promise = new Promise(function(resolve, reject) {
+                setTimeout(() => {
+                    resolve();
+                }, roundDurationMs) 
+            });
+            promise.then(result => {
+                // timer expired, nobody wins
+                sendRoundEnd(roomName, null, true);
+            }, error => {
+                // ??
+            });
         }
     }
 
     function handleGuessWord(guess){
+        // TODO use active property to disable input from player that joined in the middle of a round
         const roomName = clientRooms[client.id];
         if(!roomName) {
             return;
@@ -159,10 +188,24 @@ io.on('connection', client => {
 
         if(correctLetters == roomData.word.length) {
             // client won the game
-            var userName = client.usernamne;
             client.emit('guess_win');
-            io.to(roomName).emit('gameWon', userName);
+            sendRoundEnd(roomName, client.id, false);
         }
+    }
+
+    function sendRoundEnd(roomName, winnerId, timerExpired){
+        var totalWins = {}
+        for (var clientId in io.sockets.adapter.rooms[roomName].sockets) {
+            var client_socket = io.sockets.connected[clientId];
+            totalWins[clientId] = client_socket.wins;
+        }
+
+        var roundEndObject = {
+            timerExpired: timerExpired,
+            winnerId: winnerId,
+            totalWins:totalWins
+        }
+        io.to(roomName).emit('roundEnd', roundEndObject);
     }
 
     function getLetterResponse(actualWord, guess){

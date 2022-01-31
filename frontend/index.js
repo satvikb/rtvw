@@ -25,23 +25,58 @@ socket.on("userJoined", userJoinedRoom);
 socket.on("guess_invalidWord", handleInvalidWord);
 socket.on("guess_response", handleGuessResponse);
 socket.on("guess_win", correctGuess); // only to client who guessed
-// socket.on("gameWon", gameWon); // all clients
+socket.on("roundEnd", gameWon); // all clients
 
 // {"Id": {"username":username}}
 var currentPlayers = {}
 
-function userJoinedRoom(id, username){
-  console.log("joined room ", id, username);
-  currentPlayers[id] = {username: username};
-  addUsernameToList(username);
+function userJoinedRoom(id, username, wins){
+  addUsernameToList(id, username, wins);
 }
 
-function addUsernameToList(username){
-  const listEle = document.createElement("li");
-  listEle.innerText = username;
-  playerList.appendChild(listEle);
+function addUsernameToList(id, username, wins){
+  if(currentPlayers[id] == undefined){
+    currentPlayers[id] = {username: username}
+  }else{
+    currentPlayers[id].username = username
+  }
+
+  var listEleId = id+"_scoreboard";
+
+  var listEle = document.getElementById(listEleId);
+  if(listEle == undefined){
+    const listEle = document.createElement("li");
+    listEle.id = listEleId;
+
+    var usernameEle = document.createElement("span");
+    usernameEle.id = id+"_username";
+
+    var winCounter = document.createElement("span");
+    winCounter.id = id+"_wins";
+
+    usernameEle.innerText = username;
+    winCounter.innerText = `${wins}`;
+    listEle.appendChild(usernameEle);
+    listEle.appendChild(winCounter);
+    playerList.appendChild(listEle);  
+  }else{
+    var usernameEle = document.getElementById(id+"_username");
+    usernameEle.innerHTML = username;
+    var winCounter = document.getElementById(id+"_wins");
+    winCounter.innerHTML = ` ${wins}`;
+  }
 
   resetOtherPlayerBoards(currentPlayers)
+}
+
+function updateWins(totalWins){
+  if(totalWins){
+    // update wins for all players
+    for (const [id, wins] of Object.entries(totalWins)) {
+      var winCounter = document.getElementById(id+"_wins");
+      winCounter.innerHTML = `${wins}`;
+    }
+  }
 }
 // function gameWon(){
 //   theGame.handleInvalidWord();
@@ -376,6 +411,8 @@ function MessageDisplay() {
   }
 }
 
+var activeGame = false;
+
 // Gameplay
 function Game() {
   
@@ -460,11 +497,6 @@ function Game() {
       newGuessFromPlayer(clientId, letterResponse);
     }
   }
-
-  function correctGuess(){
-    handleCorrectGuess();
-    endGame();
-  }
   
   function evaluateTiles(letterRes) {
     const resMeaning = {
@@ -507,13 +539,10 @@ function Game() {
   function handleInvalidWord() {
     message.show('Invalid Word')
   }
-
-  function handleCorrectGuess() {
-    
-  }
   
   function startGame(word) {
     gameBoard.clear();
+    resetOtherPlayerBoards(currentPlayers);
     removeListseners();
     keyboard.clear();
     
@@ -521,10 +550,13 @@ function Game() {
     guess = guessItr.next();
     
     matchWord = word;
+
+    activeGame = true;
     // addListeners();
   }
   
   function endGame() {
+    activeGame = false;
     removeListseners();
   }
   
@@ -574,6 +606,7 @@ function Game() {
 
   return {
     startGame,
+    endGame,
     giveUp,
     addListeners,
     handleGuessResponse,
@@ -592,16 +625,15 @@ function init() {
 
 }
 
-function handleInit(gameSettings)
-{
-  var word = gameSettings.word;
-  var existingUsers = gameSettings.existingUsers;
+function handleInit(gameSettings){
+  var existingUsers = gameSettings.existingUserData;
 
   if(existingUsers){
-    for (const [key, value] of Object.entries(existingUsers)) {
-      console.log(key, value);
-      currentPlayers[key] = {username:value};
-      addUsernameToList(value);
+    for (const [key, data] of Object.entries(existingUsers)) {
+      console.log(key, data);
+      var username = data.username;
+      var wins = data.wins;
+      addUsernameToList(key, username, wins);
     }
   }
 
@@ -613,8 +645,7 @@ function handleInit(gameSettings)
   }
 
   theGame = new Game();
-  theGame.startGame(word);
-  gameState.innerText = `Waiting for other players...`;
+  gameState.innerText = ``;
 }
 
 function handleGameCode(gameCode, host) {
@@ -636,8 +667,37 @@ function handleTooManyPlayers() {
   alert('This game is already in progress');
 }
 
-function handleRoomReady() {
+var roundEndTime = 0;
+function handleRoomReady(word, endTime) {
+  theGame.startGame(word);
   theGame.addListeners();
+  roundEndTime = endTime;
+  beginTimer();
+}
+
+function beginTimer(){
+  var interval = 100; // ms
+  var expected = Date.now() + interval;
+  setTimeout(step, interval);
+  function step() {
+      var dt = Date.now() - expected; // the drift (positive for overshooting)
+      if (dt > interval) {
+          // something really bad happened. Maybe the browser (tab) was inactive?
+          // possibly special handling to avoid futile "catch up" run
+      }
+      // do what is to be done
+      var timeLeft = roundEndTime-Date.now(); // in ms
+      var secondsLeft = Math.floor(timeLeft/1000);
+      if(activeGame == true){
+        gameState.innerText = `${secondsLeft}`;
+      }
+
+      expected += interval;
+      // only continue if timeLeft is positive
+      if(Date.now() < roundEndTime && activeGame == true){
+        setTimeout(step, Math.max(0, interval - dt)); // take into account drift
+      }
+  }
 }
 
 function reset() {
@@ -655,10 +715,35 @@ function handleGuessResponse(letterRes){
   theGame.handleGuessResponse(letterRes);
 }
 
+// only the client that wins call this
 function correctGuess(){
-  theGame.correctGuess();
+
 }
 
+function gameWon(roundEndObject){
+  var timerExpired = roundEndObject.timerExpired;
+  if(timerExpired == true){
+    gameState.innerText = `Timer expired, nobody wins!`;
+
+  }else{
+    // actual winner
+    var winnerId = roundEndObject.winnerId;
+    if(winnerId != undefined){
+      var winnerObject = currentPlayers[winnerId];
+      if(winnerObject){
+        var winnerName = winnerObject.username;
+      }
+    }
+
+    var totalWins = roundEndObject.totalWins;
+    updateWins(totalWins);
+
+    gameState.innerText = `${winnerName} wins!`;
+  }
+
+
+  theGame.endGame();
+}
 
 // other board canvas
 var canvasData = {}
