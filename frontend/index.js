@@ -558,6 +558,7 @@ function Game() {
 
     activeGame = true;
     startGameButton.style.display = "none";
+    otherBoardsCanvas.style.display = "inline";
     // addListeners();
   }
   
