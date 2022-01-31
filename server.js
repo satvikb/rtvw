@@ -39,6 +39,8 @@ function initGame()
     // initialize the game
     const game = {
         word: getRandomWord(),
+        timeEnd: 0,
+        timeStart: 0
     };
     
     return game;
@@ -78,14 +80,9 @@ io.on('connection', client => {
         client.username = username;
         client.host = false;
 
-        var usernames = {}
-        for (var clientId in allUsers) {
-            console.log('client:', clientId);
-            var client_socket = io.sockets.connected[clientId];//Do whatever you want with this
-            usernames[clientId] = client_socket.username;
-        }
 
-        client.emit('init', state[roomName].word, usernames);
+
+        client.emit('init', getGameSettings(roomName, allUsers));
 
         client.join(roomName);
         io.to(roomName).emit('userJoined', client.id, client.username);
@@ -104,9 +101,25 @@ io.on('connection', client => {
         
         client.emit("userJoined", client.id, username);
         console.log("start room, word: " + state[roomName].word);
-        client.emit('init', state[roomName].word);
+        client.emit('init', getGameSettings(roomName));
     }
 
+    function getGameSettings(roomName, allUsers){
+        if(allUsers){
+            var usernames = {}
+            for (var clientId in allUsers) {
+                console.log('client:', clientId);
+                var client_socket = io.sockets.connected[clientId];//Do whatever you want with this
+                usernames[clientId] = client_socket.username;
+            }
+        }
+
+        return {
+            word: state[roomName].word,
+            existingUsers: usernames
+        }
+    }
+    
     function handleStartGame(){
         const roomName = clientRooms[client.id];
         if(!roomName) {
@@ -140,7 +153,9 @@ io.on('connection', client => {
 
         var letterRes = letterResponse.letterRes;
         console.log("response: " + letterRes)
-        client.emit("guess_response", letterRes);
+        var resObject = {id: client.id, letters:letterRes}
+        // client.emit("guess_response", resObject);
+        io.to(roomName).emit('guess_response', resObject);
 
         if(correctLetters == roomData.word.length) {
             // client won the game

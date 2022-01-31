@@ -10,6 +10,7 @@ const joinGameBtn = document.getElementById('joinGameButton');
 const gameCodeInput = document.getElementById('gameCodeInput');
 const usernameInput = document.getElementById('usernameInput');
 const playerList = document.getElementById('playerList');
+const otherBoardsCanvas = document.getElementById('otherBoardsCanvas');
 
 var isHost = false;
 
@@ -30,6 +31,7 @@ socket.on("guess_win", correctGuess); // only to client who guessed
 var currentPlayers = {}
 
 function userJoinedRoom(id, username){
+  console.log("joined room ", id, username);
   currentPlayers[id] = {username: username};
   addUsernameToList(username);
 }
@@ -38,6 +40,8 @@ function addUsernameToList(username){
   const listEle = document.createElement("li");
   listEle.innerText = username;
   playerList.appendChild(listEle);
+
+  resetOtherPlayerBoards(currentPlayers)
 }
 // function gameWon(){
 //   theGame.handleInvalidWord();
@@ -64,9 +68,6 @@ function joinGame() {
 function startGame(){
   socket.emit("startGame");
 }
-
-const wordLength = 5;
-const maxGuesses = 7;
 
 function Tile() {
   const element = document.createElement('div');
@@ -448,15 +449,19 @@ function Game() {
 
   }
 
-  function handleGuessResponse(letterResponse){
+  function handleGuessResponse(responseObj){
+    var clientId = responseObj.id;
+    var letterResponse = responseObj.letters
     console.log("eval "+JSON.stringify(letterResponse));
-    evaluateTiles(letterResponse);
-    guess = guessItr.next();
+    if(clientId == socket.id){
+      evaluateTiles(letterResponse);
+      guess = guessItr.next();
+    }else{
+      newGuessFromPlayer(clientId, letterResponse);
+    }
   }
 
   function correctGuess(){
-    
-    
     handleCorrectGuess();
     endGame();
   }
@@ -577,7 +582,9 @@ function Game() {
   }
 }
 
-theGame = new Game();
+var theGame;
+var wordLength = 5;
+var maxGuesses = 7;
 
 function init() {
   initialScreen.style.display = "none";
@@ -585,8 +592,10 @@ function init() {
 
 }
 
-function handleInit(word, existingUsers)
+function handleInit(gameSettings)
 {
+  var word = gameSettings.word;
+  var existingUsers = gameSettings.existingUsers;
 
   if(existingUsers){
     for (const [key, value] of Object.entries(existingUsers)) {
@@ -596,6 +605,14 @@ function handleInit(word, existingUsers)
     }
   }
 
+  if(gameSettings.wordLength){
+    wordLength = gameSettings.wordLength;
+  }
+  if(gameSettings.maxGuesses){
+    maxGuesses = gameSettings.maxGuesses;
+  }
+
+  theGame = new Game();
   theGame.startGame(word);
   gameState.innerText = `Waiting for other players...`;
 }
@@ -640,4 +657,119 @@ function handleGuessResponse(letterRes){
 
 function correctGuess(){
   theGame.correctGuess();
+}
+
+
+// other board canvas
+var canvasData = {}
+var boardCtx;
+function resetOtherPlayerBoards(players){
+  var c = otherBoardsCanvas;
+  var w = c.clientWidth;
+  var h = c.clientHeight;
+  c.width = w;
+  c.height = h;
+  var ctx = c.getContext("2d");
+  boardCtx = ctx;
+  ctx.translate(0.5, 0.5)
+
+
+  /* all percents */
+  var MAX_HEIGHT = 0.3;
+  var BOARDS_PER_ROW = 2;
+  var NUM_ROWS = Math.ceil(Object.keys(players).length / BOARDS_PER_ROW);
+  var HORIZONAL_PADDING = 0.02;
+  var VERTICAL_PADDING = 0.02;
+  var BOARD_WIDTH = (1 - HORIZONAL_PADDING * 2) / BOARDS_PER_ROW;
+  var BOARD_HEIGHT = Math.min((1 - VERTICAL_PADDING * 2) / NUM_ROWS, MAX_HEIGHT);
+
+
+  // ctx.canvas.width = w;
+  // ctx.canvas.height = h;
+
+  // c.style.width = w+"px";
+  // c.style.height = h+"px";
+  // c.width = c.getBoundingClientRect().height;
+  // ctx.setTransform(1, 0, 0, 3, 0, 0);
+
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "black";
+  ctx.textAlign = "center";
+  // ctx.fillText("Other Players", c.width/2, c.height/2);
+
+
+  // loop players
+  var i = 0;
+  for (const [key, value] of Object.entries(players)) {
+    if(key == socket.id){
+      continue;
+    }
+    console.log(key, value);
+    var row = Math.floor(i / BOARDS_PER_ROW);
+    var col = i % BOARDS_PER_ROW;
+    console.log(row, col, h, BOARD_HEIGHT, VERTICAL_PADDING);
+    var x = w * HORIZONAL_PADDING + col * w*BOARD_WIDTH;
+    var y = h * VERTICAL_PADDING + row * h*BOARD_HEIGHT;
+
+    canvasData[key] = {
+      row: row,
+      col: col,
+      x: x,
+      y: y,
+      w: w*BOARD_WIDTH,
+      h: h*BOARD_HEIGHT,
+      currentRow: 0
+    }
+
+    createEmptyBoard(key, ctx, x, y, w*BOARD_WIDTH, h*BOARD_HEIGHT);
+    i += 1;
+  }
+}
+
+function createEmptyBoard(id, ctx, x, y, w, h){
+  console.log("createEmptyBoard", w, h, x, y);
+  // ctx.rect(x, y, w, h);
+  // ctx.fillStyle = "black";
+  // ctx.fill();
+
+  var HORIZONAL_PADDING = 0.01*w;
+  var VERTICAL_PADDING = 0.01*h;
+  
+  // create a grid of boxes based on length of word and max guesses
+  // by using a for loop
+  var BOX_WIDTH = (w - 2 * HORIZONAL_PADDING) / wordLength;
+  var BOX_HEIGHT = (h - 2 * VERTICAL_PADDING) / maxGuesses;
+  console.log(wordLength, maxGuesses, BOX_HEIGHT, BOX_WIDTH);
+
+  canvasData[id].BOX_WIDTH = BOX_WIDTH;
+  canvasData[id].BOX_HEIGHT = BOX_HEIGHT;
+  canvasData[id].HORIZONAL_PADDING = HORIZONAL_PADDING;
+  canvasData[id].VERTICAL_PADDING = VERTICAL_PADDING;
+
+  for(var xi = 0; xi < wordLength; xi++){
+    for(var yi = 0; yi < maxGuesses; yi++){
+      ctx.strokeRect(x + (xi * BOX_WIDTH + HORIZONAL_PADDING), y + (yi * BOX_HEIGHT + VERTICAL_PADDING), BOX_WIDTH, BOX_HEIGHT);
+      // ctx.fillStyle = "green";
+      // ctx.strokeRect();
+    }
+  }
+}
+
+function newGuessFromPlayer(clientId, letters){
+  var x = canvasData[clientId].x;
+  var y = canvasData[clientId].y;
+  var BOX_WIDTH = canvasData[clientId].BOX_WIDTH;
+  var BOX_HEIGHT = canvasData[clientId].BOX_HEIGHT;
+  var HORIZONAL_PADDING = canvasData[clientId].HORIZONAL_PADDING;
+  var VERTICAL_PADDING = canvasData[clientId].VERTICAL_PADDING;
+  var yi = canvasData[clientId].currentRow;
+  for(var xi = 0; xi < wordLength; xi++){
+    boardCtx.beginPath();
+    boardCtx.rect(x + (xi * BOX_WIDTH + HORIZONAL_PADDING), y + (yi * BOX_HEIGHT + VERTICAL_PADDING), BOX_WIDTH, BOX_HEIGHT);
+    console.log("Filling letter for other play ", letters[xi], letters);
+    boardCtx.fillStyle = letters[xi] == 2 ? "green" :(letters[xi] == 1 ? "yellow" : "gray");
+    boardCtx.closePath();
+    boardCtx.fill();
+  }
+  canvasData[clientId].currentRow = canvasData[clientId].currentRow+1;
 }
