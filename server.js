@@ -224,25 +224,45 @@ io.on('connection', client => {
     }
 
     function getLetterResponse(actualWord, guess){
-        var letterRes = [];
-
+        var letterRes = Array.from({length: actualWord.length}, () => 0)
         const LETTER_CORRECT = 2;
         const LETTER_EXISTS = 1;
         const LETTER_DOESNT_EXIST = 0;
 
         var correctLetters = 0;
+
+        var stillNeeded = {}
+        for(var i = 0; i < actualWord.length; i++){
+            var l = actualWord[i];
+            if(stillNeeded[l] == undefined){
+                stillNeeded[l] = 1;
+            }else{
+                stillNeeded[l] += 1;
+            }
+        }
+
         for(var i = 0; i < actualWord.length; i++){
             let guessLetter = guess.charAt(i);
             let solutionLetter = actualWord.charAt(i);
             if(solutionLetter == guessLetter){
-                letterRes.push(LETTER_CORRECT);
+                letterRes[i] = LETTER_CORRECT;
                 correctLetters += 1;
-            }else if(actualWord.indexOf(guessLetter) != -1){
-                letterRes.push(LETTER_EXISTS);
-            }else{
-                letterRes.push(LETTER_DOESNT_EXIST);
+                stillNeeded[solutionLetter] -= 1;
             }
         }
+
+        for(var i = 0; i < actualWord.length; i++){
+            let guessLetter = guess.charAt(i);
+            let solutionLetter = actualWord.charAt(i);
+            // console.log("final check "+stillNeeded[solutionLetter])
+            if(actualWord.indexOf(guessLetter) != -1  && stillNeeded[guessLetter] > 0){
+                letterRes[i] = LETTER_EXISTS;
+            }else if(actualWord.indexOf(guessLetter) == -1){
+                letterRes[i] = LETTER_DOESNT_EXIST;
+            }
+        }
+        
+
         return {
             "correctLetters": correctLetters,
             "letterRes": letterRes
