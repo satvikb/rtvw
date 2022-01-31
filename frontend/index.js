@@ -1,5 +1,5 @@
-// const socket = io('https://rtvw.herokuapp.com');
-const socket = io('http://localhost:3000');
+const socket = io('https://rtvw.herokuapp.com');
+// const socket = io('http://localhost:3000');
 
 const game = document.getElementById('game');
 const initialScreen = document.getElementById('initialScreen');
