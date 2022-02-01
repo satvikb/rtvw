@@ -16,54 +16,91 @@
   
 </head>
 <body>
-  <section class="vh-100">
-    <div class="container uk-width-1-1">
+  <div class="screenDiv">
+    <div class="container uk-width-1-1 uk-height-1-1">
 
-      <div id="initialScreen" class="h-100">
-        <div class="d-flex flex-column align-items-center justify-content-center h-100">
-            <h1>rtvw - Real Time Versus Wordle</h1>
-            <button
-              type="submit"
-              class="btn btn-success"
-              id="newGameButton"
-            >
-              Create New Game
-            </button>
-            <div>OR</div>
-            <div class="form-group">
-              <input type="text" placeholder="Enter Game Code" id="gameCodeInput"/>
+      <div id="initialScreen">
+        <div class="uk-width-1-3 uk-align-center">
+          <h1>rtvw - Real Time Versus Wordle</h1>
+                    
+          <div class="uk-grid-small" uk-grid>
+            <div class="uk-width-1-1">
+              <input type="text" class="uk-textarea" placeholder="Enter Username" id="usernameInput"/>
             </div>
-            <button type="submit" class="btn btn-success" id="joinGameButton">
-              Join Game
-            </button>
-            <div class="form-group">
-              <input type="text" placeholder="Enter Username" id="usernameInput"/>
+            <div class="uk-width-1-2@s">
+              <div>
+                <input type="text" class="uk-textarea" placeholder="Enter Game Code" id="gameCodeInput"/>
+              </div>
             </div>
+            <div class="uk-width-1-4@s">
+
+            </div>
+            <div class="uk-width-1-4@s">
+
+            </div>
+            <div class="uk-width-1-2@s">
+              <button type="submit" class="uk-width-1-1 uk-button uk-button-default" id="joinGameButton">
+                Join Game
+              </button>
+            </div>
+            <div class="uk-width-1-2@s">
+              <button class="uk-width-1-1 uk-button uk-button-default" id="newGameButton">
+                Create New Game
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       <!-- <div id="controls">
         <button id="newGameButton">NEW GAME</button>
         <button id="giveUpButton">GIVE UP</button>
       </div> -->
-      <div class="uk-container uk-width-1-1 uk-flex" >
+
+      <div class="uk-child-width-expand@s uk-height-1-1" uk-grid>
+        <div>
+          <ul class="uk-list uk-list-divider uk-width-1-2 uk-margin-top" id="playerList">
+          </ul>
+          <button id="startGameButton" style="display:none" class="uk-button uk-button-default">Start</button>
+          <h4><span id="gameCodeDisplay"></span></h4>
+        </div>
+        <div>
+          <div id="game" >
+            <h4><span id="gameState"></span></h4>
+            <div id="game-container"></div>
+            <div>
+              <div id="keyboard" ></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <canvas id="otherBoardsCanvas" class="uk-width-1-1 uk-height-1-1"></canvas>
+        </div>
+      </div>
+
+
+      <!--  <div class="uk-container uk-width-1-1 uk-height-1-1" >
         <div class="uk-width-1-3">
           <ul class="uk-list uk-list-divider uk-width-1-2 uk-margin-top" id="playerList">
           </ul>
           <button id="startGameButton" style="display:none" class="uk-button uk-button-default">Start</button>
+          <h4><span id="gameCodeDisplay"></span></h4>
         </div>
-        <div id="game" class="uk-container uk-width-1-3">
-          <h4>Game Code: <span id="gameCodeDisplay"></span></h4>
-          <h4><span id="gameState"></span></h4>
-          <div id="game-container"></div>
-          <div id="keyboard"></div>
+        <div class="uk-container uk-width-1-3 uk-height-1-1">
+          <div id="game" >
+            <h4><span id="gameState"></span></h4>
+            <div id="game-container"></div>
+            <div class="uk-width-1-3 uk-align-center">
+              <div id="keyboard" ></div>
+            </div>
+          </div>
         </div>
-        <div class="uk-width-1-3">
-          <canvas id="otherBoardsCanvas" class="uk-width-1-1 uk-height-1-1" style="image-rendering: pixelated;"></canvas>
+        <div class="uk-container uk-width-1-3 uk-height-1-1">
+          <canvas id="otherBoardsCanvas" style="outline: #FF0000 solid 10px;" class=""></canvas>
         </div>
-      </div>
+      </div> -->
 
     </div>
-  </section>
+  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
   <script src="index.js"></script>

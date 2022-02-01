@@ -1,5 +1,5 @@
-const socket = io('https://rtvw.herokuapp.com');
-// const socket = io('http://localhost:3000');
+// const socket = io('https://rtvw.herokuapp.com');
+const socket = io('http://localhost:3000');
 
 const game = document.getElementById('game');
 const initialScreen = document.getElementById('initialScreen');
@@ -27,11 +27,32 @@ socket.on("guess_response", handleGuessResponse);
 socket.on("guess_win", correctGuess); // only to client who guessed
 socket.on("roundEnd", gameWon); // all clients
 
+socket.on('hostAssigned', updateIsHost)
+socket.on('playerDisconnected', handlePlayerDisonnected)
+
+socket.on("alreadyInRoom", handleAlreadyInRoom);
+
 // {"Id": {"username":username}}
 var currentPlayers = {}
 
 function userJoinedRoom(id, username, wins){
   addUsernameToList(id, username, wins);
+}
+
+// should really never be called
+function handleAlreadyInRoom(){
+  alert("You are already in a room");
+}
+
+function updateIsHost(){
+  isHost = true;
+  startGameButton.style.display = "inline";
+}
+
+function handlePlayerDisonnected(id){
+  var listEleId = id+"_scoreboard";
+  var listEle = document.getElementById(listEleId);
+  playerList.removeChild(listEle);
 }
 
 function addUsernameToList(id, username, wins){
@@ -66,7 +87,7 @@ function addUsernameToList(id, username, wins){
     winCounter.innerHTML = `&nbsp;Wins: ${wins}`;
   }
 
-  resetOtherPlayerBoards(currentPlayers)
+  drawOtherPlayerBoards(currentPlayers)
 }
 
 function updateWins(totalWins){
@@ -499,7 +520,15 @@ function Game() {
       evaluateTiles(letterResponse);
       guess = guessItr.next();
     }else{
-      newGuessFromPlayer(clientId, letterResponse);
+      if(currentPlayers[clientId] == undefined){
+        currentPlayers[clientId] = {id: clientId, guesses:[]}
+      }
+      if(currentPlayers[clientId].guesses == undefined){
+        currentPlayers[clientId].guesses = []
+      }
+      currentPlayers[clientId].guesses.push(letterResponse);
+      console.log(currentPlayers[clientId].guesses.length-1, " ", currentPlayers[clientId].guesses);
+      drawGuessRow(clientId, currentPlayers[clientId].guesses.length-1);
     }
   }
   
@@ -547,7 +576,7 @@ function Game() {
   
   function startGame(word) {
     gameBoard.clear();
-    resetOtherPlayerBoards(currentPlayers);
+    drawOtherPlayerBoards(currentPlayers);
     removeListseners();
     keyboard.clear();
     
@@ -628,8 +657,8 @@ var maxGuesses = 7;
 
 function init() {
   initialScreen.style.display = "none";
-  game.style.display = "flex";
-
+  game.style.display = "inline";
+  console.log("INIT")
 }
 
 function handleInit(gameSettings){
@@ -656,9 +685,8 @@ function handleInit(gameSettings){
 }
 
 function handleGameCode(gameCode, host) {
-  gameCodeDisplay.innerText = gameCode;
+  gameCodeDisplay.innerText = "Game Code: "+gameCode;
   isHost = host;
-  console.log("isHost", host);
   if(isHost){
     startGameButton.style.display = "inline";
   }
@@ -749,22 +777,30 @@ function gameWon(roundEndObject){
     gameState.innerText = `${winnerName} wins!`;
   }
 
-  startGameButton.style.display = "inline";
-
+  if(isHost){
+    startGameButton.style.display = "inline";
+  }
   theGame.endGame();
 }
 
 // other board canvas
 var canvasData = {}
 var boardCtx;
-function resetOtherPlayerBoards(players){
+function drawOtherPlayerBoards(players){
   var c = otherBoardsCanvas;
-  var w = c.clientWidth;
-  var h = c.clientHeight;
+  var w = window.innerWidth/3;//c.clientWidth;
+  var h = window.innerHeight;
+
+  // var w = c.clientWidth;
+  // var h = c.clientHeight;
+  console.log("resetOtherPlayerBoards: ", w, h);
   c.width = w;
   c.height = h;
+
+
   var ctx = c.getContext("2d");
   boardCtx = ctx;
+  ctx.clearRect(0, 0, c.width, c.height);
   ctx.translate(0.5, 0.5)
 
 
@@ -777,20 +813,13 @@ function resetOtherPlayerBoards(players){
   var BOARD_WIDTH = (1 - HORIZONAL_PADDING * 2) / BOARDS_PER_ROW;
   var BOARD_HEIGHT = Math.min((1 - VERTICAL_PADDING * 2) / NUM_ROWS, MAX_HEIGHT);
 
-
-  // ctx.canvas.width = w;
-  // ctx.canvas.height = h;
-
-  // c.style.width = w+"px";
-  // c.style.height = h+"px";
-  // c.width = c.getBoundingClientRect().height;
-  // ctx.setTransform(1, 0, 0, 3, 0, 0);
+  // ctx.strokeStyle = "green";
+  // ctx.strokeRect(0, 10, w, h-20);
 
   ctx.font = "20px Arial";
   ctx.fillStyle = "black";
   ctx.textAlign = "center";
   // ctx.fillText("Other Players", c.width/2, c.height/2);
-
 
   // loop players
   var i = 0;
@@ -812,33 +841,47 @@ function resetOtherPlayerBoards(players){
       y: y,
       w: w*BOARD_WIDTH,
       h: h*BOARD_HEIGHT,
-      currentRow: 0
+      username: value.username,
     }
 
     createEmptyBoard(key, ctx, x, y, w*BOARD_WIDTH, h*BOARD_HEIGHT);
+    
+    // loop through current guess data
+    var gd = value.guesses
+    if(gd){
+      for(var i = 0; i < gd.length; i++){
+        drawGuessRow(key, i);
+      }
+    }
+    
+
     i += 1;
   }
 }
 
 function createEmptyBoard(id, ctx, x, y, w, h){
   console.log("createEmptyBoard", w, h, x, y);
-  // ctx.rect(x, y, w, h);
-  // ctx.fillStyle = "black";
-  // ctx.fill();
+  ctx.strokeStyle = "red";
 
-  var HORIZONAL_PADDING = 0.01*w;
-  var VERTICAL_PADDING = 0.01*h;
-  
+  ctx.strokeRect(x, y, w, h);
+
+  var HORIZONAL_PADDING = 0;//0.01*w;
+  var VERTICAL_PADDING = 0;//0.01*h;
+  var usernameHeight = 0.1*h;
+
   // create a grid of boxes based on length of word and max guesses
   // by using a for loop
+  var gridHeight = h - VERTICAL_PADDING*2 - usernameHeight;
   var BOX_WIDTH = (w - 2 * HORIZONAL_PADDING) / wordLength;
-  var BOX_HEIGHT = (h - 2 * VERTICAL_PADDING) / maxGuesses;
+  var BOX_HEIGHT = (gridHeight - 2 * VERTICAL_PADDING) / maxGuesses;
   console.log(wordLength, maxGuesses, BOX_HEIGHT, BOX_WIDTH);
+  BOX_WIDTH = BOX_HEIGHT = Math.min(BOX_WIDTH, BOX_HEIGHT);
 
   canvasData[id].BOX_WIDTH = BOX_WIDTH;
   canvasData[id].BOX_HEIGHT = BOX_HEIGHT;
   canvasData[id].HORIZONAL_PADDING = HORIZONAL_PADDING;
   canvasData[id].VERTICAL_PADDING = VERTICAL_PADDING;
+  var username = canvasData[id].username;
 
   for(var xi = 0; xi < wordLength; xi++){
     for(var yi = 0; yi < maxGuesses; yi++){
@@ -847,16 +890,20 @@ function createEmptyBoard(id, ctx, x, y, w, h){
       // ctx.strokeRect();
     }
   }
+
+  ctx.font = "20px Arial";
+  ctx.fillText(username, x + w/2 - (usernameHeight/2), y + gridHeight + VERTICAL_PADDING + usernameHeight);
 }
 
-function newGuessFromPlayer(clientId, letters){
+function drawGuessRow(clientId, row){
   var x = canvasData[clientId].x;
   var y = canvasData[clientId].y;
   var BOX_WIDTH = canvasData[clientId].BOX_WIDTH;
   var BOX_HEIGHT = canvasData[clientId].BOX_HEIGHT;
   var HORIZONAL_PADDING = canvasData[clientId].HORIZONAL_PADDING;
   var VERTICAL_PADDING = canvasData[clientId].VERTICAL_PADDING;
-  var yi = canvasData[clientId].currentRow;
+  var yi = row;//canvasData[clientId].guessData.length;
+  var letters = currentPlayers[clientId].guesses[row];
   for(var xi = 0; xi < wordLength; xi++){
     boardCtx.beginPath();
     boardCtx.rect(x + (xi * BOX_WIDTH + HORIZONAL_PADDING), y + (yi * BOX_HEIGHT + VERTICAL_PADDING), BOX_WIDTH, BOX_HEIGHT);
@@ -865,5 +912,10 @@ function newGuessFromPlayer(clientId, letters){
     boardCtx.closePath();
     boardCtx.fill();
   }
-  canvasData[clientId].currentRow = canvasData[clientId].currentRow+1;
 }
+
+function resizeCanvas(){
+  drawOtherPlayerBoards(currentPlayers);
+}
+
+window.addEventListener('resize', resizeCanvas, false);

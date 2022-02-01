@@ -1,6 +1,11 @@
 body {
   font-family: "Helvetica Neue", Arial, sans-serif;
   color: #111111;
+  caret-color: rgba(0,0,0,0);
+}
+
+.screenDiv {
+  height: 99vh;
 }
 
 #controls {
@@ -141,11 +146,6 @@ body {
 
 .wrong {
   background-color: #333;
-}
-
-#footer {
-  width: 100%;
-  text-align: center;
 }
 
 /*# sourceMappingURL=styles.css.map */

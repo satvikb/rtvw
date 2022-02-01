@@ -53,6 +53,7 @@ io.on('connection', client => {
     client.on('newGame', handleNewGame);
     client.on('joinGame', handleJoinGame);
     client.on('startGame', handleStartGame);
+    client.on('disconnect', handleDisconnect);
 
     function handleJoinGame(roomName, username) {
         const room = io.sockets.adapter.rooms[roomName];
@@ -91,20 +92,24 @@ io.on('connection', client => {
     }
 
     function handleNewGame(username) {
-        let roomName = makeid(5);
-        clientRooms[client.id] = roomName;
-        console.log("host true" )
-        client.emit('gameCode', roomName, true);
-        state[roomName] = initGame();
+        var alreadyInRoom = clientRooms[client.id] == undefined ? false : true;
+        if(!alreadyInRoom) {
+            let roomName = makeid(5);
+            clientRooms[client.id] = roomName;
+            client.emit('gameCode', roomName, true);
+            state[roomName] = initGame();
 
-        client.join(roomName);
-        client.username = username;
-        client.host = true;
-        client.wins = 0;
+            client.join(roomName);
+            client.username = username;
+            client.host = true;
+            client.wins = 0;
 
-        client.emit("userJoined", client.id, username, client.wins);
-        console.log("start room, word: " + state[roomName].word);
-        client.emit('init', getGameSettings(roomName));
+            client.emit("userJoined", client.id, username, client.wins);
+            console.log("starting room " + roomName);
+            client.emit('init', getGameSettings(roomName));
+        }else{
+            client.emit('alreadyInRoom');
+        }
     }
 
     function getGameSettings(roomName, allUsers){
@@ -267,6 +272,34 @@ io.on('connection', client => {
             "correctLetters": correctLetters,
             "letterRes": letterRes
         };
+    }
+
+    function handleDisconnect(){
+        const roomName = clientRooms[client.id];
+        if(!roomName) {
+            return;
+        }
+        // remove client from room
+        client.leave(roomName);
+        // remove room if empty
+        if(io.sockets.adapter.rooms[roomName] && io.sockets.adapter.rooms[roomName].length == 0){
+            delete state[roomName];
+            delete io.sockets.adapter.rooms[roomName];
+        }else if(io.sockets.adapter.rooms[roomName]){
+            // send message to other players
+            io.to(roomName).emit('playerDisconnected', client.id);
+            // reassign host if the host left
+            if(client.host == true){
+                for (var clientId in io.sockets.adapter.rooms[roomName].sockets) {
+                    var client_socket = io.sockets.connected[clientId];
+                    if(client_socket.host == false){
+                        client_socket.host = true;
+                        client_socket.emit("hostAssigned");
+                        break;
+                    }
+                }
+            }
+        }
     }
 });
 
