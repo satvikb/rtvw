@@ -780,6 +780,13 @@ function gameWon(roundEndObject){
   if(isHost){
     startGameButton.style.display = "inline";
   }
+
+  // reset guesses
+  // loop through all players and reset their guesses
+  for (const [key, value] of Object.entries(currentPlayers)) {
+    value.guesses = [];
+  }
+
   theGame.endGame();
 }
 
