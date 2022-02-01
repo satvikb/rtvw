@@ -137,7 +137,7 @@ io.on('connection', client => {
         }
         // end time
         if(client.host == true && state[roomName].active == false){
-            var roundDuration = 60; // in seconds
+            var roundDuration = 120; // in seconds
             var roundDurationMs = roundDuration * 1000;
             var endTime = new Date().getTime() + roundDurationMs;
 
