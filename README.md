@@ -1,2 +1,2 @@
-# versle
- A 1v1 Online Wordle Clone
+# rtvw - Real Time Versus Wordle
+  Play Wordle against friends in realtime
