@@ -39,9 +39,13 @@ function initGame()
     // initialize the game
     const game = {
         word: "",
+        timeStart: 0,
         timeEnd: 0,
         timeStart: 0,
-        active: false
+        active: false,
+        guessCount: 7,
+        wordLength: 5,
+        roundLength: 90
     };
     
     return game;
@@ -53,6 +57,7 @@ io.on('connection', client => {
     client.on('newGame', handleNewGame);
     client.on('joinGame', handleJoinGame);
     client.on('startGame', handleStartGame);
+    client.on('updateSettings', handleUpdateSettings);
     client.on('disconnect', handleDisconnect);
 
     function handleJoinGame(roomName, username) {
@@ -79,16 +84,22 @@ io.on('connection', client => {
 
         clientRooms[client.id] = roomName;
 
-        client.username = username;
-        client.host = false;
-        client.active = false;
-        client.wins = 0;
-
+        initClient(client, username);
 
         client.emit('init', getGameSettings(roomName, allUsers));
 
         client.join(roomName);
         io.to(roomName).emit('userJoined', client.id, client.username, client.wins);
+    }
+
+    function initClient(client, username, host = false){
+        client.username = username;
+        client.host = host;
+        client.active = false;
+        client.wins = 0;
+        client.points = 0;
+        client.currentGuesses = [];
+        client.currentPoints = 0;
     }
 
     function handleNewGame(username) {
@@ -100,9 +111,7 @@ io.on('connection', client => {
             state[roomName] = initGame();
 
             client.join(roomName);
-            client.username = username;
-            client.host = true;
-            client.wins = 0;
+            initClient(client, username, true);
 
             client.emit("userJoined", client.id, username, client.wins);
             console.log("starting room " + roomName);
@@ -115,18 +124,23 @@ io.on('connection', client => {
     function getGameSettings(roomName, allUsers){
         var userData = {}
         if(allUsers){
+            
             for (var clientId in allUsers) {
                 console.log('client:', clientId);
-                var client_socket = io.sockets.connected[clientId];//Do whatever you want with this
+                var client_socket = io.sockets.connected[clientId];
                 userData[clientId] = {
                     username:client_socket.username,
-                    wins:client_socket.wins
+                    wins:client_socket.wins,
+                    currentGuesses:client_socket.currentGuesses,
                 }
             }
         }
 
         return {
-            existingUserData: userData
+            existingUserData: userData,
+            wordLength: state[roomName].wordLength,
+            guessCount: state[roomName].guessCount,
+            roundLength: state[roomName].roundLength,
         }
     }
     
@@ -137,7 +151,13 @@ io.on('connection', client => {
         }
         // end time
         if(client.host == true && state[roomName].active == false){
-            var roundDuration = 120; // in seconds
+            // room settings
+            var roundLength = state[roomName].roundLength;
+            var wordLength = state[roomName].wordLength;
+            var guessCount = state[roomName].guessCount;
+
+            var roundDuration = roundLength || 120; // in seconds
+            console.log("starting game in room " + roomName + " for " + roundDuration + " seconds");
             var roundDurationMs = roundDuration * 1000;
             var endTime = new Date().getTime() + roundDurationMs;
 
@@ -147,35 +167,80 @@ io.on('connection', client => {
                 client_socket.active = true;
             }
 
-            state[roomName].word = getRandomWord()
+            var timed = roundLength ? roundLength > 0 : false;
+            var gameSettings = {
+                timed: timed,
+                endTime: endTime,
+                wordLength: wordLength,
+                guessCount: guessCount
+            }
+
+            state[roomName].word = getRandomWord(wordLength)
             state[roomName].endTime = endTime
+            state[roomName].startTime = new Date().getTime()
             state[roomName].active = true;
 
             var word = state[roomName].word;
             console.log("starting room, word " + word);
             // game officially started
-            io.to(roomName).emit('roomReady', word, endTime);
-            let promise = new Promise(function(resolve, reject) {
-                var currentWord = state[roomName].word;
-                setTimeout(() => {
-                    var latestWord = state[roomName].word;
-                    // make sure the word hasn't changed
-                    // if it has, its a new room
-                    if(latestWord == currentWord && state[roomName].active == true) {
-                        resolve();
-                    }else{
-                        // invalid timer, game already ended or new round started
-                        reject();
-                    }
-                    
-                }, roundDurationMs) 
-            });
-            promise.then(result => {
-                // timer expired, nobody wins
-                sendRoundEnd(roomName, null, true);
-            }, error => {
-                // invalid timer, ignore
-            });
+            io.to(roomName).emit('roomReady', gameSettings);
+            if(timed){
+                let promise = new Promise(function(resolve, reject) {
+                    var currentWord = state[roomName].word;
+                    setTimeout(() => {
+                        var latestWord = state[roomName].word;
+                        // make sure the word hasn't changed
+                        // if it has, its a new room
+
+                        // TODO maybe use now and startTime with a tolerance to determine if its a new room
+                        // var now = new Date().getTime();
+
+                        if(latestWord == currentWord && state[roomName].active == true) {
+                            resolve();
+                        }else{
+                            // invalid timer, game already ended or new round started
+                            reject();
+                        }
+                        
+                    }, roundDurationMs) 
+                });
+                promise.then(result => {
+                    // timer expired, nobody wins
+                    sendRoundEnd(roomName, {
+                        method:"timedOut"
+                    });
+                }, error => {
+                    // invalid timer, ignore
+                });
+            }
+        }
+    }
+
+    function handleUpdateSettings(gameSettings){
+        const roomName = clientRooms[client.id];
+        if(!roomName) {
+            return;
+        }
+
+        // update room settings
+        if(client.host == true && state[roomName].active == false){
+            // validate settings
+            state[roomName].guessCount = gameSettings.guessCount || 7;
+            state[roomName].wordLength = gameSettings.wordLength || 5;
+            state[roomName].roundLength = gameSettings.roundLength || 90;
+            var timed = gameSettings.roundLength ? gameSettings.roundLength > 0 : true;
+            state[roomName].timed = timed;
+
+            // object of valid settings
+            var validGameSettings = {
+                guessCount: state[roomName].guessCount,
+                wordLength: state[roomName].wordLength,
+                roundLength: state[roomName].roundLength,
+                timed: timed
+            };
+
+            // update all clients
+            io.to(roomName).emit('updateSettings', validGameSettings);
         }
     }
 
@@ -185,43 +250,87 @@ io.on('connection', client => {
         if(!roomName) {
             return;
         }
+        var roomData = state[roomName];
+
+        
         // check valid word
         if(!matchDict.includes(guess)) {
             client.emit('guess_invalidWord');
             return;
         }
 
-        var roomData = state[roomName];
         // get correct letters
         var letterResponse = getLetterResponse(roomData.word, guess)
-
         var correctLetters = letterResponse.correctLetters;
-
         var letterRes = letterResponse.letterRes;
-        console.log("response: " + letterRes)
+
+        client.currentGuesses.push(letterRes);
+        client.currentPoints = Math.max(client.currentPoints, correctLetters);
+        
         var resObject = {id: client.id, letters:letterRes}
         // client.emit("guess_response", resObject);
         io.to(roomName).emit('guess_response', resObject);
 
         if(correctLetters == roomData.word.length) {
             client.wins += 1;
+
             // client won the game
             client.emit('guess_win');
-            sendRoundEnd(roomName, client.id, false);
+            sendRoundEnd(roomName, {
+                winner: client.id,
+                method: "playerWon"
+            });
+            return;
+        }
+
+        if(client.currentGuesses.length == roomData.guessCount){
+            // client is out of guesses
+            // check if everyone is out of guesses
+            var allOutOfGuesses = true;
+            for (var clientId in io.sockets.adapter.rooms[roomName].sockets) {
+                var client_socket = io.sockets.connected[clientId];
+                if(client_socket.currentGuesses < roomData.guessCount && client_socket.active == true){
+                    allOutOfGuesses = false;
+                }
+            }
+
+            console.log("everyone out of guesses "+allOutOfGuesses);
+
+            if(allOutOfGuesses){
+                // everyone is out of guesses, end round
+                sendRoundEnd(roomName, {
+                    method:"guessLimit"
+                });
+            }
+            return;   
         }
     }
 
-    function sendRoundEnd(roomName, winnerId, timerExpired){
-        var totalWins = {}
+    // game end data:
+    /*
+        {
+            winner: client.id,
+            method: "timedOut | playerWon | guessLimit"
+        }
+    */
+    function sendRoundEnd(roomName, gameEndData){
+        // add up the intermediate points for all clients
+        var totalScore = {}
         for (var clientId in io.sockets.adapter.rooms[roomName].sockets) {
             var client_socket = io.sockets.connected[clientId];
-            totalWins[clientId] = client_socket.wins;
+            client_socket.points += client_socket.currentPoints;
+            client_socket.currentPoints = 0;
+            totalScore[clientId] = {
+                wins: client_socket.wins,
+                points: client_socket.points
+            }
         }
 
         var roundEndObject = {
-            timerExpired: timerExpired,
-            winnerId: winnerId,
-            totalWins:totalWins
+            method: gameEndData.method,
+            winnerId: gameEndData.winner,
+            totalScore:totalScore,
+            word: state[roomName].word
         }
         // set active to false
         state[roomName].active = false;

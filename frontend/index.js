@@ -9,6 +9,12 @@ const newGameBtn = document.getElementById('newGameButton');
 const joinGameBtn = document.getElementById('joinGameButton');
 const gameCodeInput = document.getElementById('gameCodeInput');
 const usernameInput = document.getElementById('usernameInput');
+
+const gameSettingsForm = document.getElementById('gameSettingsForm');
+var roundLengthSelect = document.getElementById('roundLengthSelect');
+var wordLengthSelect = document.getElementById('wordLengthSelect');
+var guessCountSelect = document.getElementById('guessCountSelect');
+const startGameButton = document.getElementById('startGameButton');
 const playerList = document.getElementById('playerList');
 const otherBoardsCanvas = document.getElementById('otherBoardsCanvas');
 
@@ -25,8 +31,9 @@ socket.on("userJoined", userJoinedRoom);
 socket.on("guess_invalidWord", handleInvalidWord);
 socket.on("guess_response", handleGuessResponse);
 socket.on("guess_win", correctGuess); // only to client who guessed
-socket.on("roundEnd", gameWon); // all clients
+socket.on("roundEnd", gameEnd); // all clients
 
+socket.on("updateSettings", updateGameSettings)
 socket.on('hostAssigned', updateIsHost)
 socket.on('playerDisconnected', handlePlayerDisonnected)
 
@@ -46,7 +53,8 @@ function handleAlreadyInRoom(){
 
 function updateIsHost(){
   isHost = true;
-  startGameButton.style.display = "inline";
+  gameSettingsForm.style.display = "inline";
+  alert("You are now the host.")
 }
 
 function handlePlayerDisonnected(id){
@@ -90,22 +98,26 @@ function addUsernameToList(id, username, wins){
   drawOtherPlayerBoards(currentPlayers)
 }
 
-function updateWins(totalWins){
-  if(totalWins){
+function updateScore(totalScore){
+  if(totalScore){
     // update wins for all players
-    for (const [id, wins] of Object.entries(totalWins)) {
+    for (const [id, data] of Object.entries(totalScore)) {
+      var wins = data.wins;
+      var points = data.points;
       var winCounter = document.getElementById(id+"_wins");
       winCounter.innerHTML = `${wins}`;
     }
   }
 }
-// function gameWon(){
-//   theGame.handleInvalidWord();
-// }
 
 newGameBtn.addEventListener('click', newGame);
 joinGameBtn.addEventListener('click', joinGame);
 startGameButton.addEventListener('click', startGame);
+
+// settings
+roundLengthSelect.addEventListener("change", settingChanged);
+wordLengthSelect.addEventListener("change", settingChanged);
+guessCountSelect.addEventListener("change", settingChanged);
 
 function newGame() {
   var username = usernameInput.value;
@@ -126,8 +138,31 @@ function joinGame() {
   init();
 }
 
+function settingChanged(){
+  // get timed, round length, word length, and guess count
+  // get values from select settings
+  var roundLength = parseInt(roundLengthSelect.value);
+  var wordLength = parseInt(wordLengthSelect.value);
+  var guessCount = parseInt(guessCountSelect.value);
+
+  // settings object
+  var gameSettings = {
+    roundLength: roundLength,
+    wordLength: wordLength,
+    guessCount: guessCount
+  };
+
+  // send settings to server
+  socket.emit("updateSettings", gameSettings);
+}
+
 function startGame(){
   socket.emit("startGame");
+}
+
+function updateGameSettings(gameSettings){
+  console.log(JSON.stringify(gameSettings));
+  createNewGameBoard(gameSettings);
 }
 
 function Tile() {
@@ -443,7 +478,7 @@ var activeGame = false;
 function Game() {
   
   // Create Game Board
-  const gameBoard = createGameBoard();
+  var gameBoard = createGameBoard();
 
   function GuessIterator() {
     const guesses = gameBoard.guesses
@@ -469,10 +504,11 @@ function Game() {
   
   let guessItr, guess, gameRunning = false;
   
-  let matchWord = ''
+  // let matchWord = ''
   
   // Render
   const container = document.getElementById('game-container');
+  container.innerHTML = "";
   container.appendChild(gameBoard.element);
   
   const message = MessageDisplay()
@@ -574,7 +610,7 @@ function Game() {
     message.show('Invalid Word')
   }
   
-  function startGame(word) {
+  function startGame() {
     gameBoard.clear();
     drawOtherPlayerBoards(currentPlayers);
     removeListseners();
@@ -582,11 +618,9 @@ function Game() {
     
     guessItr = new GuessIterator();
     guess = guessItr.next();
-    
-    matchWord = word;
 
     activeGame = true;
-    startGameButton.style.display = "none";
+    gameSettingsForm.style.display = "none";
     otherBoardsCanvas.style.display = "inline";
     // addListeners();
   }
@@ -596,9 +630,9 @@ function Game() {
     removeListseners();
   }
   
-  function giveUp() {
-    message.show(matchWord.toUpperCase())
-  }
+  // function giveUp() {
+  //   message.show(matchWord.toUpperCase())
+  // }
   
   function addListeners() {
     keyboard.addClickCallback(onKeyboardClick)
@@ -643,7 +677,6 @@ function Game() {
   return {
     startGame,
     endGame,
-    giveUp,
     addListeners,
     handleGuessResponse,
     handleInvalidWord,
@@ -673,23 +706,38 @@ function handleInit(gameSettings){
     }
   }
 
-  if(gameSettings.wordLength){
-    wordLength = gameSettings.wordLength;
-  }
-  if(gameSettings.maxGuesses){
-    maxGuesses = gameSettings.maxGuesses;
-  }
-
-  theGame = new Game();
-  gameState.innerText = ``;
+  createNewGameBoard(gameSettings);
 }
 
 function handleGameCode(gameCode, host) {
   gameCodeDisplay.innerText = "Game Code: "+gameCode;
   isHost = host;
   if(isHost){
-    startGameButton.style.display = "inline";
+    console.log("updating form")
+    gameSettingsForm.style.display = "inline";
   }
+}
+
+function createNewGameBoard(gameSettings){
+  if(gameSettings.wordLength){
+    wordLength = gameSettings.wordLength;
+  }
+  if(gameSettings.guessCount){
+    maxGuesses = gameSettings.guessCount;
+  }
+
+  console.log("Create new board "+JSON.stringify(gameSettings));
+
+  // update the select values to match the game settings
+  wordLengthSelect.value = wordLength;
+  guessCountSelect.value = maxGuesses;
+  roundLengthSelect.value = gameSettings.roundLength;
+
+  if(theGame != undefined){
+    delete theGame;
+  }
+  theGame = new Game();
+  gameState.innerText = ``;
 }
 
 function handleUnknownCode() {
@@ -703,11 +751,17 @@ function handleTooManyPlayers() {
 }
 
 var roundEndTime = 0;
-function handleRoomReady(word, endTime) {
-  theGame.startGame(word);
+function handleRoomReady(gameSettings) {
+  createNewGameBoard(gameSettings);
+
+  theGame.startGame();
   theGame.addListeners();
-  roundEndTime = endTime;
-  beginTimer();
+
+  if(gameSettings.timed){
+    var endTime = gameSettings.endTime;
+    roundEndTime = endTime;
+    beginTimer();
+  }
 }
 
 function beginTimer(){
@@ -755,15 +809,16 @@ function correctGuess(){
 
 }
 
-function gameWon(roundEndObject){
-  var timerExpired = roundEndObject.timerExpired;
-  console.log("ROUND ENDED: ", JSON.stringify(roundEndObject));
-  if(timerExpired == true){
-    gameState.innerText = `Timer expired, nobody wins!`;
-
-  }else{
+function gameEnd(roundEndObject){
+  var endMethod = roundEndObject.method;
+  var answer = roundEndObject.word;
+  if(endMethod == "timedOut"){
+    gameState.innerText = `Timer expired, nobody wins! Word: `+answer;
+  }else if(endMethod == "guessLimit"){
+    gameState.innerText = `Nobody guessed it right! Word: `+answer;
+  }else if(endMethod == "playerWon"){
     // actual winner
-    var winnerId = roundEndObject.winnerId;
+    var winnerId = roundEndObject.winner;
     if(winnerId != undefined){
       var winnerObject = currentPlayers[winnerId];
       if(winnerObject){
@@ -771,14 +826,14 @@ function gameWon(roundEndObject){
       }
     }
 
-    var totalWins = roundEndObject.totalWins;
-    updateWins(totalWins);
+    var totalScore = roundEndObject.totalScore;
+    updateScore(totalScore);
 
     gameState.innerText = `${winnerName} wins!`;
   }
 
   if(isHost){
-    startGameButton.style.display = "inline";
+    gameSettingsForm.style.display = "inline";
   }
 
   // reset guesses
